@@ -1,13 +1,21 @@
 package com.rsreu.printing_house.controllers;
 
-import com.rsreu.printing_house.entities.Employee;
+import com.rsreu.printing_house.PrintingHouseApplication;
+import com.rsreu.swagger.model.EmployeeDto;
 import javafx.application.Application;
+import javafx.application.HostServices;
+import javafx.application.Platform;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
 import lombok.Getter;
 import lombok.Setter;
+import net.rgielen.fxweaver.core.FxWeaver;
+import org.springframework.boot.builder.SpringApplicationBuilder;
+import org.springframework.context.ApplicationContextInitializer;
+import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.context.support.GenericApplicationContext;
 
 import java.io.IOException;
 
@@ -17,22 +25,39 @@ public class App extends Application {
     private static Stage stage;
     @Getter
     @Setter
-    private static String serverURL;
-    @Getter
-    @Setter
-    private static Employee employee;
+    private static EmployeeDto employee;
+    private ConfigurableApplicationContext applicationContext;
 
-    public static void main(String[] args) {
-        launch();
+    @Override
+    public void init() {
+        String[] args = getParameters().getRaw().toArray(new String[0]);
+        ApplicationContextInitializer<GenericApplicationContext> initializer = applicationContext -> {
+            applicationContext.registerBean(Application.class, () -> App.this);
+            applicationContext.registerBean(Parameters.class, this::getParameters);
+            applicationContext.registerBean(HostServices.class, this::getHostServices);
+        };
+
+        this.applicationContext = new SpringApplicationBuilder()
+                .sources(PrintingHouseApplication.class)
+                .initializers(initializer)
+                .run(args);
     }
 
     @Override
-    public void start(Stage stage) throws IOException {
-        scene = new Scene(loadFXML("authorization"));
-        App.stage = stage;
+    public void start(Stage stage) {
+        FxWeaver fxWeaver = applicationContext.getBean(FxWeaver.class);
+        Parent root = fxWeaver.loadView(AuthorizationController.class);
+        scene = new Scene(root);
+        App.stage = new Stage();
         App.stage.setScene(scene);
         App.stage.show();
         App.stage.setTitle("Типография");
+    }
+
+    @Override
+    public void stop() {
+        this.applicationContext.close();
+        Platform.exit();
     }
 
     public static void setRoot(String fxml) throws IOException {
